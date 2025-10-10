@@ -3,10 +3,11 @@ import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { Progress } from '@/components/ui/progress'
 import AuthenticatedLayout from './authenticated-layout'
-import { ProjectsProvider } from '@/contexts/projects-context'
+import { ProductProvider, useProduct } from '@/contexts/product-context'
+import { ViewProvider, useView } from '@/contexts/view-context'
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
-    const { data: session, status } = useSession()
+    const { status } = useSession()
     const [progress, setProgress] = useState(0)
     const [showLoader, setShowLoader] = useState(true)
 
@@ -73,17 +74,35 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
     if (status === 'authenticated') {
         return (
-            <ProjectsProvider>
-                <AuthenticatedLayout>
-                    {children}
-                </AuthenticatedLayout>
-            </ProjectsProvider>
+            <ViewProvider>
+                <ProductProvider>
+                    <AuthenticatedLayoutWrapper>
+                        {children}
+                    </AuthenticatedLayoutWrapper>
+                </ProductProvider>
+            </ViewProvider>
         )
     } else {
         return <div>
             {children}
         </div>
     }
+}
+
+function AuthenticatedLayoutWrapper({ children }: { children: React.ReactNode }) {
+    const { selectedProductId, setSelectedProductId, setIsAddingProduct } = useProduct();
+    const { setIsCampaignFormOpen } = useView();
+    
+    return (
+        <AuthenticatedLayout
+            selectedProductId={selectedProductId}
+            onProductSelect={setSelectedProductId}
+            onAddProduct={() => setIsAddingProduct(true)}
+            onAddCampaign={() => setIsCampaignFormOpen(true)}
+        >
+            {children}
+        </AuthenticatedLayout>
+    );
 }
 
 export default Layout

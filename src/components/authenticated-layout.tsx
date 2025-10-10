@@ -1,185 +1,100 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { PromptProject } from "@/components/Dashboard";
-import { ProjectCommandPalette } from "@/components/ProjectCommandPalette";
+import { ProductCommandPalette } from "@/components/ProductCommandPalette";
 import { useCommandPalette } from "@/hooks/use-command-palette";
-import { useProjectsContext } from "@/contexts/projects-context";
+import { GlobalProductDialogs } from "@/components/GlobalProductDialogs";
+import { useProduct } from "@/contexts/product-context";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { FiTrash2 } from 'react-icons/fi';
-import { ProjectProvider, useProject } from '@/contexts/project-context';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
+  selectedProductId?: string | null;
+  onProductSelect?: (productId: string | null) => void;
+  onAddProduct?: () => void;
+  onAddCampaign?: () => void;
 }
 
-function AuthenticatedLayoutContent({ children }: AuthenticatedLayoutProps) {
-  const { data: session, status } = useSession();
-  const { openProject, isCreatingProject, setIsCreatingProject, editingProject, setEditingProject } = useProject();
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
-  
-  // Command Palette state
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const { isOpen: commandPaletteIsOpen, onOpenChange: onCommandPaletteOpenChange } = useCommandPalette(
-    isCommandPaletteOpen,
-    setIsCommandPaletteOpen
-  );
+export default function AuthenticatedLayout({ 
+  children, 
+  selectedProductId, 
+  onProductSelect,
+  onAddProduct,
+  onAddCampaign
+}: AuthenticatedLayoutProps) {
+  const { data: session } = useSession();
+  const { isOpen, closeCommandPalette } = useCommandPalette();
+  const { 
+    isFormOpen, 
+    setIsFormOpen, 
+    editingProduct, 
+    setEditingProduct, 
+    refreshAllProducts 
+  } = useProduct();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
-  // Use projects context
-  const {
-    projects,
-    isLoading,
-    error,
-    createProject: apiCreateProject,
-    updateProject: apiUpdateProject,
-    deleteProject: apiDeleteProject,
-  } = useProjectsContext();
+  const handleProductSelect = (productId: string) => {
+    onProductSelect?.(productId);
+  };
 
-  // Project management functions
-  const createProject = async (projectData: Omit<PromptProject, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleAddProduct = () => {
+    setEditingProduct(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEditProduct = (product: any) => {
+    setEditingProduct(product);
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    setProductToDelete(productId);
+    setConfirmDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
+
     try {
-      await apiCreateProject({
-        name: projectData.name,
-        description: projectData.description,
-        tags: projectData.tags,
-        availableVariables: projectData.availableVariables,
-        template: projectData.template,
-        isPublic: projectData.isPublic,
-        responseMode: projectData.responseMode
+      const response = await fetch(`/api/products/${productToDelete}`, {
+        method: 'DELETE',
       });
-      setIsCreatingProject(false);
-    } catch (error) {
-      // Error is already handled in the hook
-    }
-  };
 
-  const updateProject = async (projectData: Omit<PromptProject, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!editingProject) return;
-
-    try {
-      await apiUpdateProject(editingProject.id, projectData);
-      setEditingProject(null);
-    } catch (error) {
-      // Error is already handled in the hook
-    }
-  };
-
-  const toggleProjectPublic = async (projectId: string, isPublic: boolean) => {
-    try {
-      await apiUpdateProject(projectId, { isPublic });
-      toast.success(`Proyecto ${isPublic ? 'hecho público' : 'hecho privado'} exitosamente`);
-    } catch (error) {
-      // Error is already handled in the hook
-    }
-  };
-
-  const deleteProject = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    if (project) {
-      setProjectToDelete(projectId);
-      setShowDeleteDialog(true);
-    }
-  };
-
-  const confirmDeleteProject = async () => {
-    if (projectToDelete) {
-      try {
-        await apiDeleteProject(projectToDelete);
-        setShowDeleteDialog(false);
-        setProjectToDelete(null);
-      } catch (error) {
-        // Error is already handled in the hook
+      if (!response.ok) {
+        throw new Error('Error al eliminar producto');
       }
+
+      toast.success('Producto eliminado exitosamente');
+      refreshAllProducts();
+      
+      // Si el producto eliminado es el seleccionado, limpiar la selección
+      if (selectedProductId === productToDelete) {
+        onProductSelect?.(null);
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast.error('Error al eliminar producto');
+    } finally {
+      setProductToDelete(null);
     }
   };
 
-  const cancelDeleteProject = () => {
-    setShowDeleteDialog(false);
-    setProjectToDelete(null);
+  const handleFormClose = () => {
+    setIsFormOpen(false);
+    setEditingProduct(null);
   };
 
-  // Show loading state
-  if (isLoading) {
-    return (
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
-          } as React.CSSProperties
-        }
-      >
-        <AppSidebar 
-          variant="inset" 
-          projects={[]} 
-          onOpenProject={() => {}}
-          user={session?.user}
-          onCreateProject={() => {}}
-          onOpenCommandPalette={() => {}}
-        />
-        <SidebarInset>
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <div className="text-center">
-              <div className="w-8 h-8 border-4 border-sidebar-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Cargando...</p>
-            </div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
-          } as React.CSSProperties
-        }
-      >
-        <AppSidebar 
-          variant="inset" 
-          projects={[]} 
-          onOpenProject={() => {}}
-          user={session?.user}
-          onCreateProject={() => {}}
-          onOpenCommandPalette={() => {}}
-        />
-        <SidebarInset>
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <div className="text-center">
-              <p className="text-red-600 mb-4">{error}</p>
-              <button 
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-sidebar-accent text-sidebar-accent-foreground rounded-lg hover:bg-sidebar-accent/90"
-              >
-                Reintentar
-              </button>
-            </div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    );
-  }
+  const handleFormSuccess = () => {
+    refreshAllProducts();
+  };
 
   return (
     <SidebarProvider
@@ -191,15 +106,14 @@ function AuthenticatedLayoutContent({ children }: AuthenticatedLayoutProps) {
       }
     >
       <AppSidebar 
-        variant="inset" 
-        projects={projects} 
-        onOpenProject={openProject}
-        onEditProject={setEditingProject}
-        onDeleteProject={deleteProject}
-        onTogglePublic={toggleProjectPublic}
+        variant="inset"
         user={session?.user}
-        onCreateProject={() => setIsCreatingProject(true)}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        selectedProductId={selectedProductId}
+        onProductSelect={onProductSelect}
+        onAddProduct={handleAddProduct}
+        onEditProduct={handleEditProduct}
+        onDeleteProduct={handleDeleteProduct}
+        onAddCampaign={onAddCampaign}
       />
       <SidebarInset>
         <div className="flex flex-1 flex-col">
@@ -210,60 +124,36 @@ function AuthenticatedLayoutContent({ children }: AuthenticatedLayoutProps) {
           </div>
         </div>
       </SidebarInset>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FiTrash2 className="w-5 h-5 text-red-600" />
-              Confirmar eliminación
-            </DialogTitle>
-            <DialogDescription>
-              ¿Estás seguro de que quieres eliminar este proyecto? Esta acción no se puede deshacer.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button 
-              variant="outline" 
-              onClick={cancelDeleteProject}
-              className="w-full sm:w-auto"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={confirmDeleteProject}
-              className="w-full sm:w-auto"
-            >
-              <FiTrash2 className="w-4 h-4 mr-2" />
-              Eliminar proyecto
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+      
       {/* Command Palette */}
-      <ProjectCommandPalette
-        projects={projects}
-        isOpen={commandPaletteIsOpen}
-        onOpenChange={onCommandPaletteOpenChange}
-        onOpenProject={openProject}
-        onEditProject={setEditingProject}
-        onDeleteProject={deleteProject}
-        onCreateProject={() => setIsCreatingProject(true)}
-        user={session?.user}
+      <ProductCommandPalette
+        isOpen={isOpen}
+        onClose={closeCommandPalette}
+        onProductSelect={handleProductSelect}
+        onAddProduct={handleAddProduct}
+        userRole={session?.user?.role}
+      />
+
+      {/* Global Product Dialogs */}
+      <GlobalProductDialogs
+        isFormOpen={isFormOpen}
+        onFormClose={handleFormClose}
+        editingProduct={editingProduct}
+        onFormSuccess={handleFormSuccess}
+        userRole={session?.user?.role}
+      />
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Eliminar Producto"
+        description="¿Estás seguro de que deseas eliminar este producto? Esta acción no se puede deshacer."
+        onConfirm={confirmDelete}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="destructive"
       />
     </SidebarProvider>
-  );
-}
-
-export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
-  return (
-    <ProjectProvider>
-      <AuthenticatedLayoutContent>
-        {children}
-      </AuthenticatedLayoutContent>
-    </ProjectProvider>
   );
 }

@@ -40,6 +40,12 @@ enum ResponseMode {
   AI_RESPONSE
 }
 
+enum SystemType {
+  PRODUCTS
+  BLOG
+  MARKETING
+}
+
 model Project {
   id                 String       @id @default(cuid())
   name               String
@@ -57,4 +63,28 @@ model Project {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("projects")
+}
+
+model SystemPrompt {
+  id         String     @id @default(cuid())
+  systemType SystemType @unique
+  prompt     String     @db.Text
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@map("system_prompts")
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  brand            String
+  model            String
+  icon             String   @default("Package")
+  customPrompt     String?  @db.Text
+  researchData     Json?
+  datasheetContent String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("products")
 }
