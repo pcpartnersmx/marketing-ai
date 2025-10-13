@@ -25,12 +25,6 @@ export function SystemPromptEditor({ systemType, triggerButton }: SystemPromptEd
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchPrompt();
-    }
-  }, [isOpen, systemType]);
-
   const fetchPrompt = async () => {
     setIsLoading(true);
     try {
@@ -47,6 +41,12 @@ export function SystemPromptEditor({ systemType, triggerButton }: SystemPromptEd
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPrompt();
+    }
+  }, [isOpen, systemType]);
 
   const handleSave = async () => {
     if (!prompt.trim()) {

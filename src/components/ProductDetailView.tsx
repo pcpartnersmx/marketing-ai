@@ -3,25 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { FiArrowLeft, FiSettings, FiEdit3, FiFileText, FiCheck, FiRefreshCw, FiClipboard, FiBriefcase, FiBarChart, FiSmartphone, FiSave } from 'react-icons/fi';
+import { FiArrowLeft, FiSettings, FiEdit3, FiFileText, FiCheck, FiRefreshCw, FiClipboard, FiBriefcase, FiBarChart, FiSmartphone } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { useDebounce } from '@/hooks/use-debounce';
-
-interface Product {
-  id: string;
-  brand: string;
-  model: string;
-  customPrompt?: string | null;
-  researchData: Record<string, unknown> | null;
-  createdAt: string;
-  updatedAt: string;
-}
+import { Product } from '@prisma/client';
 
 interface ProductDetailViewProps {
   product: Product;

@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { ProductsList } from '@/components/ProductsList';
+import { ProductsKanban } from '@/components/ProductsKanban';
 import { ProductDatasheet } from '@/components/ProductDatasheet';
 import { BlogsList } from '@/components/BlogsList';
 import { MarketingView } from '@/components/MarketingView';
@@ -11,7 +12,7 @@ import { useView } from '@/contexts/view-context';
 
 export default function Page() {
   const { data: session } = useSession();
-  const { selectedProductId, setSelectedProductId, isAddingProduct, setIsAddingProduct, productMode } = useProduct();
+  const { selectedProductId, setSelectedProductId, isAddingProduct, setIsAddingProduct, productMode, updateProductInAllComponents, refreshAllProducts } = useProduct();
   const { currentView, isCampaignFormOpen, setIsCampaignFormOpen } = useView();
 
   const renderView = () => {
@@ -19,11 +20,42 @@ export default function Page() {
       case 'products':
         // Renderizar según el modo de producto
         if (productMode === 'datasheet') {
+          // Si hay un producto seleccionado, mostrar ProductDatasheet
+          if (selectedProductId) {
+            return (
+              <ProductDatasheet 
+                userRole={session?.user?.role}
+                selectedProductId={selectedProductId}
+                onProductSelect={setSelectedProductId}
+              />
+            );
+          }
+          // Si no hay producto seleccionado, mostrar el kanban
           return (
-            <ProductDatasheet
+            <ProductsKanban 
               userRole={session?.user?.role}
               selectedProductId={selectedProductId}
               onProductSelect={setSelectedProductId}
+              onEditProduct={(product) => {
+                // Lógica para editar producto - se maneja en el contexto
+                console.log('Edit product:', product);
+              }}
+              onDeleteProduct={async (productId) => {
+                try {
+                  const response = await fetch(`/api/products/${productId}`, {
+                    method: 'DELETE',
+                  });
+                  
+                  if (!response.ok) {
+                    throw new Error('Error al eliminar producto');
+                  }
+                  
+                  // Refrescar todos los componentes después de eliminar
+                  refreshAllProducts();
+                } catch (error) {
+                  console.error('Error deleting product:', error);
+                }
+              }}
             />
           );
         }

@@ -10,17 +10,9 @@ import {
   CommandItem,
   CommandShortcut,
 } from '@/components/ui/command';
-import { FiPackage, FiPlus, FiSearch, FiEye, FiRefreshCw } from 'react-icons/fi';
+import { FiPackage, FiPlus } from 'react-icons/fi';
 import { toast } from 'sonner';
-
-interface Product {
-  id: string;
-  brand: string;
-  model: string;
-  researchData: Record<string, unknown> | null;
-  createdAt: string;
-  updatedAt: string;
-}
+import { Product } from '@prisma/client';
 
 interface ProductCommandPaletteProps {
   isOpen: boolean;
@@ -28,6 +20,7 @@ interface ProductCommandPaletteProps {
   onProductSelect: (productId: string) => void;
   onAddProduct: () => void;
   userRole?: string;
+  productMode?: 'research' | 'datasheet';
 }
 
 export function ProductCommandPalette({
@@ -35,13 +28,18 @@ export function ProductCommandPalette({
   onClose,
   onProductSelect,
   onAddProduct,
-  userRole
+  userRole,
+  productMode = 'research'
 }: ProductCommandPaletteProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
-  const [researchingId, setResearchingId] = useState<string | null>(null);
 
   const isAdmin = userRole === 'ADMIN';
+  
+  // Filtrar productos según el modo
+  const filteredProducts = productMode === 'datasheet' 
+    ? products.filter(product => product.researchData)
+    : products;
 
   useEffect(() => {
     if (isOpen) {
@@ -61,26 +59,6 @@ export function ProductCommandPalette({
       toast.error('Error al cargar productos');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleResearch = async (productId: string) => {
-    setResearchingId(productId);
-    try {
-      const response = await fetch(`/api/products/${productId}/research`, {
-        method: 'POST',
-      });
-
-      if (!response.ok) throw new Error('Error al generar investigación');
-
-      toast.success('Investigación generada exitosamente');
-      fetchProducts();
-      onClose();
-    } catch (error) {
-      console.error('Error generating research:', error);
-      toast.error('Error al generar investigación');
-    } finally {
-      setResearchingId(null);
     }
   };
 
@@ -118,7 +96,7 @@ export function ProductCommandPalette({
         </CommandEmpty>
 
         {/* Acción: Crear nuevo producto */}
-        {isAdmin && (
+        {isAdmin && productMode !== 'datasheet' && (
           <CommandGroup heading="Acciones">
             <CommandItem onSelect={handleAddProduct}>
               <FiPlus className="h-4 w-4" />
@@ -129,9 +107,9 @@ export function ProductCommandPalette({
         )}
 
         {/* Productos existentes */}
-        {products.length > 0 && (
+        {filteredProducts.length > 0 && (
           <CommandGroup heading="Productos">
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <CommandItem
                 key={product.id}
                 onSelect={() => handleProductClick(product)}
@@ -152,25 +130,6 @@ export function ProductCommandPalette({
                 </div>
               </CommandItem>
             ))}
-          </CommandGroup>
-        )}
-
-        {/* Acciones rápidas para productos */}
-        {isAdmin && products.length > 0 && (
-          <CommandGroup heading="Acciones Rápidas">
-            {products
-              .filter(product => !product.researchData)
-              .slice(0, 5) // Mostrar solo los primeros 5 productos sin investigación
-              .map((product) => (
-                <CommandItem
-                  key={`research-${product.id}`}
-                  onSelect={() => handleResearch(product.id)}
-                  disabled={researchingId === product.id}
-                >
-                  <FiRefreshCw className={`h-4 w-4 ${researchingId === product.id ? 'animate-spin' : ''}`} />
-                  <span>Generar investigación para {product.brand} {product.model}</span>
-                </CommandItem>
-              ))}
           </CommandGroup>
         )}
       </CommandList>

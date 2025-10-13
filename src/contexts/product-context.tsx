@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { Product } from '@prisma/client';
 
 type ProductMode = 'research' | 'datasheet';
 
@@ -11,13 +12,15 @@ interface ProductContextType {
   setIsAddingProduct: (value: boolean) => void;
   isFormOpen: boolean;
   setIsFormOpen: (value: boolean) => void;
-  editingProduct: any | null;
-  setEditingProduct: (product: any | null) => void;
+  editingProduct: Product | null;
+  setEditingProduct: (product: Product | null) => void;
   refreshProducts: () => void;
   setRefreshProducts: (callback: () => void) => void;
   refreshAllProducts: () => void;
   productMode: ProductMode;
   setProductMode: (mode: ProductMode) => void;
+  // Nueva función para actualizar un producto específico en todos los componentes
+  updateProductInAllComponents: (productId: string, updates: Partial<Product>) => void;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
@@ -26,7 +29,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productMode, setProductMode] = useState<ProductMode>('research');
   
   // Usar ref para almacenar las funciones de refresh sin causar re-renders
@@ -53,6 +56,30 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     refreshProducts();
   }, [refreshProducts]);
 
+  // Nueva función para actualizar un producto específico en todos los componentes
+  const updateProductInAllComponents = useCallback(async (productId: string, updates: Partial<Product>) => {
+    try {
+      // Primero actualizar el producto en el servidor
+      const response = await fetch(`/api/products/${productId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar producto');
+      }
+
+      // Luego refrescar todos los componentes
+      refreshProducts();
+    } catch (error) {
+      console.error('Error updating product:', error);
+      throw error; // Re-lanzar el error para que el componente que llama pueda manejarlo
+    }
+  }, [refreshProducts]);
+
   return (
     <ProductContext.Provider
       value={{
@@ -69,6 +96,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         refreshAllProducts,
         productMode,
         setProductMode,
+        updateProductInAllComponents,
       }}
     >
       {children}

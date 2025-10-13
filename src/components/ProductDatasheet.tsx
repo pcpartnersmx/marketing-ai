@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import { FiPlus, FiFileText, FiEdit, FiTrash2, FiEye, FiX } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiEdit, FiEye } from 'react-icons/fi';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import {
@@ -15,15 +15,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import TiptapEditor from './TiptapEditor';
-
-interface Product {
-  id: string;
-  brand: string;
-  model: string;
-  icon?: string;
-  researchData: Record<string, unknown> | null;
-  datasheetContent: string | null;
-}
+import { useProduct } from '@/contexts/product-context';
+import { Product } from '@prisma/client';
 
 interface ProductDatasheetProps {
   userRole?: string;
@@ -33,16 +26,38 @@ interface ProductDatasheetProps {
 
 export function ProductDatasheet({ userRole, selectedProductId, onProductSelect }: ProductDatasheetProps) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const { setRefreshProducts, refreshAllProducts } = useProduct();
 
   useEffect(() => {
     fetchProductsWithResearch();
   }, []);
+
+  // Registrar la función de refresh en el contexto
+  useEffect(() => {
+    setRefreshProducts(fetchProductsWithResearch);
+  }, [setRefreshProducts]);
+
+  // Actualizar producto seleccionado cuando cambia selectedProductId
+  useEffect(() => {
+    if (selectedProductId && products.length > 0) {
+      const product = products.find(p => p.id === selectedProductId);
+      setSelectedProduct(product || null);
+      if (product && product.datasheetContent) {
+        setViewingProduct(product);
+        setEditedContent(product.datasheetContent);
+      }
+    } else {
+      setSelectedProduct(null);
+      setViewingProduct(null);
+    }
+  }, [selectedProductId, products]);
 
   const fetchProductsWithResearch = async () => {
     try {
@@ -74,7 +89,15 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
       toast.success('Ficha técnica generada exitosamente');
       
       // Actualizar la lista de productos
-      await fetchProductsWithResearch();
+      refreshAllProducts();
+      
+      // Si es el producto seleccionado, actualizarlo
+      if (selectedProductId === productId) {
+        const updatedProduct = { ...selectedProduct!, datasheetContent: data.content };
+        setSelectedProduct(updatedProduct);
+        setViewingProduct(updatedProduct);
+        setEditedContent(data.content);
+      }
     } catch (error) {
       console.error('Error generating datasheet:', error);
       toast.error('Error al generar la ficha técnica');
@@ -119,11 +142,16 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
       setIsEditing(false);
       
       // Actualizar la lista de productos
-      await fetchProductsWithResearch();
+      refreshAllProducts();
       
       // Actualizar el producto que se está viendo
       const updatedProduct = { ...viewingProduct, datasheetContent: editedContent };
       setViewingProduct(updatedProduct);
+      
+      // Si es el producto seleccionado, actualizarlo también
+      if (selectedProductId === viewingProduct.id) {
+        setSelectedProduct(updatedProduct);
+      }
     } catch (error) {
       console.error('Error saving datasheet:', error);
       toast.error('Error al guardar la ficha técnica');
@@ -146,6 +174,109 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
             </CardContent>
           </Card>
         ))}
+      </div>
+    );
+  }
+
+  // Si hay un producto seleccionado, mostrar su vista
+  if (selectedProduct) {
+    const hasDatasheet = !!selectedProduct.datasheetContent;
+    const isGenerating = generatingId === selectedProduct.id;
+
+    return (
+      <div className="w-full h-full flex flex-col">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">
+              {selectedProduct.brand} {selectedProduct.model}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Ficha Técnica
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => onProductSelect?.(null)}
+          >
+            Volver a la lista
+          </Button>
+        </div>
+
+        {hasDatasheet ? (
+          <div className="flex-1 flex flex-col">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                  Ficha disponible
+                </Badge>
+                {userRole === 'ADMIN' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStartEdit}
+                  >
+                    <FiEdit className="h-3 w-3 mr-1" />
+                    Editar
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-hidden">
+              <TiptapEditor
+                content={editedContent}
+                onUpdate={setEditedContent}
+                editable={isEditing}
+              />
+            </div>
+
+            {isEditing && (
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSaveDatasheet}
+                  disabled={saving}
+                  className="bg-black hover:bg-black/90 text-white"
+                >
+                  {saving ? 'Guardando...' : 'Guardar'}
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Card className="flex-1 flex items-center justify-center">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <FiFileText className="h-16 w-16 text-muted-foreground mb-6" />
+              <h3 className="text-xl font-medium mb-4">No hay ficha técnica generada</h3>
+              <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
+                Este producto tiene investigación completada pero no se ha generado su ficha técnica aún.
+              </p>
+              {userRole === 'ADMIN' && (
+                <Button 
+                  size="lg"
+                  onClick={() => handleGenerateDatasheet(selectedProduct.id)}
+                  disabled={isGenerating}
+                  className="bg-black hover:bg-black/90 text-white px-8 py-3 text-lg"
+                >
+                  {isGenerating ? (
+                    <>Generando ficha...</>
+                  ) : (
+                    <>
+                      <FiPlus className="h-5 w-5 mr-2" />
+                      Generar Ficha
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
@@ -221,7 +352,7 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
                             variant="outline" 
                             size="sm" 
                             className="flex-1 h-8"
-                            onClick={() => handleViewDatasheet(product)}
+                            onClick={() => onProductSelect?.(product.id)}
                           >
                             <FiEye className="h-3 w-3 mr-1" />
                             Ver Ficha
@@ -250,17 +381,10 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
                             variant="outline" 
                             size="sm" 
                             className="w-full h-8"
-                            onClick={() => handleGenerateDatasheet(product.id)}
-                            disabled={isGenerating}
+                            onClick={() => onProductSelect?.(product.id)}
                           >
-                            {isGenerating ? (
-                              <>Generando...</>
-                            ) : (
-                              <>
-                                <FiPlus className="h-3 w-3 mr-1" />
-                                Generar Ficha
-                              </>
-                            )}
+                            <FiPlus className="h-3 w-3 mr-1" />
+                            Generar Ficha
                           </Button>
                         )}
                       </>

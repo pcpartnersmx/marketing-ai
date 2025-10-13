@@ -10,23 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { ProductForm } from './ProductForm';
 import { toast } from 'sonner';
+import { Product } from '@prisma/client';
 import { 
   FiPackage, FiBox, FiShoppingCart, FiShoppingBag, FiTag, FiTruck,
   FiStar, FiHeart, FiGift, FiCpu, FiMonitor, FiSmartphone,
   FiWatch, FiHeadphones, FiCamera, FiAperture, FiZap, FiTrendingUp,
   FiEdit2
 } from 'react-icons/fi';
-
-interface Product {
-  id: string;
-  brand: string;
-  model: string;
-  icon?: string;
-  customPrompt?: string | null;
-  researchData: Record<string, unknown> | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface GlobalProductDialogsProps {
   isFormOpen: boolean;

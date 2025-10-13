@@ -13,6 +13,7 @@ import { GlobalProductDialogs } from "@/components/GlobalProductDialogs";
 import { useProduct } from "@/contexts/product-context";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { toast } from 'sonner';
+import { Product } from '@prisma/client';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -36,7 +37,8 @@ export default function AuthenticatedLayout({
     setIsFormOpen, 
     editingProduct, 
     setEditingProduct, 
-    refreshAllProducts 
+    refreshAllProducts,
+    productMode
   } = useProduct();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export default function AuthenticatedLayout({
     setIsFormOpen(true);
   };
 
-  const handleEditProduct = (product: any) => {
+  const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
     setIsFormOpen(true);
   };
@@ -132,6 +134,7 @@ export default function AuthenticatedLayout({
         onProductSelect={handleProductSelect}
         onAddProduct={handleAddProduct}
         userRole={session?.user?.role}
+        productMode={productMode}
       />
 
       {/* Global Product Dialogs */}

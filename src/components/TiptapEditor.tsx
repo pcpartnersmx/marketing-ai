@@ -10,9 +10,6 @@ import {
   FiItalic, 
   FiList, 
   FiCode,
-  FiAlignLeft,
-  FiAlignCenter,
-  FiAlignRight,
   FiCopy
 } from 'react-icons/fi'
 
@@ -47,15 +44,14 @@ const TiptapEditor = ({ content, onUpdate, editable = true }: TiptapEditorProps)
   }, [editor, editable])
 
   const handleCopy = async () => {
+    if (!editor) return;
+    
     try {
       // Obtener el contenido HTML del editor
       const htmlContent = editor.getHTML()
       
-      // Crear un objeto con HTML y texto plano para mejor compatibilidad
-      const clipboardData = {
-        'text/html': htmlContent,
-        'text/plain': editor.getText()
-      }
+      // Obtener el contenido como texto plano para fallback
+      const textContent = editor.getText()
       
       // Usar la nueva API del portapapeles si está disponible
       if (navigator.clipboard && navigator.clipboard.write) {
@@ -65,7 +61,7 @@ const TiptapEditor = ({ content, onUpdate, editable = true }: TiptapEditorProps)
         clipboardItems.push(
           new ClipboardItem({
             'text/html': new Blob([htmlContent], { type: 'text/html' }),
-            'text/plain': new Blob([editor.getText()], { type: 'text/plain' })
+            'text/plain': new Blob([textContent], { type: 'text/plain' })
           })
         )
         
@@ -76,16 +72,16 @@ const TiptapEditor = ({ content, onUpdate, editable = true }: TiptapEditorProps)
       }
       
       toast.success('Contenido copiado con formato para Word')
-    } catch (error) {
-      console.error('Error al copiar:', error)
-      // Fallback: copiar texto plano
-      try {
-        await navigator.clipboard.writeText(editor.getText())
-        toast.success('Contenido copiado como texto plano')
-      } catch (fallbackError) {
-        toast.error('Error al copiar el contenido')
+      } catch (error) {
+        console.error('Error al copiar:', error)
+        // Fallback: copiar texto plano
+        try {
+          await navigator.clipboard.writeText(editor.getText())
+          toast.success('Contenido copiado como texto plano')
+        } catch {
+          toast.error('Error al copiar el contenido')
+        }
       }
-    }
   }
 
   if (!editor) {

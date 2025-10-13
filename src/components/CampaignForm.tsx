@@ -12,13 +12,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { FiMail, FiInstagram, FiTarget } from 'react-icons/fi';
-
-interface Product {
-    id: string;
-    brand: string;
-    model: string;
-    researchData: Record<string, unknown> | null;
-}
+import { Product } from '@prisma/client';
 
 interface CampaignFormProps {
     onSuccess?: () => void;

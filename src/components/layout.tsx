@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { Progress } from '@/components/ui/progress'
+import Image from 'next/image'
 import AuthenticatedLayout from './authenticated-layout'
 import { ProductProvider, useProduct } from '@/contexts/product-context'
 import { ViewProvider, useView } from '@/contexts/view-context'
@@ -55,11 +56,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="flex flex-col items-center space-y-6 w-full max-w-sm px-6">
-                    <img 
+                    <Image 
                         src="/logo.webp" 
                         alt="Logo" 
+                        width={200}
+                        height={200}
                         className="animate-pulse"
-                        
                     />
                     <div className="w-full space-y-2">
                         <Progress value={progress} className="h-2" />

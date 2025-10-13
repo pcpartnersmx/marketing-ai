@@ -9,34 +9,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { ProductForm } from './ProductForm';
 import { toast } from 'sonner';
-import { FiEdit2, FiTrash2, FiRefreshCw, FiSettings, FiEye, FiPackage, FiZap } from 'react-icons/fi';
+import { FiPackage, FiZap } from 'react-icons/fi';
 import { Badge } from '@/components/ui/badge';
-import { SystemPromptEditor } from './SystemPromptEditor';
 import { ProductDetailView } from './ProductDetailView';
 import { motion } from 'framer-motion';
 import { useProduct } from '@/contexts/product-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-
-interface Product {
-  id: string;
-  brand: string;
-  model: string;
-  customPrompt?: string | null;
-  researchData: Record<string, unknown> | null;
-  createdAt: string;
-  updatedAt: string;
-}
+import { Product } from '@prisma/client';
 
 interface ProductsListProps {
   userRole?: string;
@@ -118,7 +99,7 @@ export function ProductsList({
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<Product | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
 
-  const { setRefreshProducts, setEditingProduct, setIsFormOpen } = useProduct();
+  const { setRefreshProducts, setEditingProduct, setIsFormOpen, refreshAllProducts } = useProduct();
   const isAdmin = userRole === 'ADMIN';
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
@@ -133,7 +114,7 @@ export function ProductsList({
       setEditingProduct(null);
       setIsFormOpen(true);
     }
-  }, [isAddingProduct, setEditingProduct, setIsFormOpen]);
+  }, [isAddingProduct, setEditingProduct, setIsFormOpen, setRefreshProducts]);
 
   // Abrir producto seleccionado desde el sidebar
   React.useEffect(() => {
@@ -200,7 +181,7 @@ export function ProductsList({
       if (!response.ok) throw new Error('Error al generar investigación');
 
       toast.success('Investigación generada exitosamente');
-      fetchProducts();
+      refreshAllProducts();
     } catch (error) {
       console.error('Error generating research:', error);
       toast.error('Error al generar investigación');
@@ -249,9 +230,9 @@ export function ProductsList({
       if (!response.ok) throw new Error('Error al cargar producto');
       const updatedProduct = await response.json();
       setSelectedProductForDetail(updatedProduct);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Ignorar errores de cancelación
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         return;
       }
       console.error('Error loading product:', error);
@@ -274,24 +255,27 @@ export function ProductsList({
     fetchProducts();
   };
 
-  const renderResearchData = (data: Record<string, unknown> | null) => {
+  const renderResearchData = (data: unknown) => {
     if (!data) return <p className="text-muted-foreground">No hay datos disponibles</p>;
 
     // Si tiene el campo "raw", mostrar como texto
-    if ('raw' in data && typeof data.raw === 'string') {
-      return (
-        <div className="prose prose-sm max-w-none">
-          <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg">
-            {data.raw}
-          </pre>
-        </div>
-      );
+    if (typeof data === 'object' && data !== null && 'raw' in data) {
+      const dataObj = data as Record<string, unknown>;
+      if (typeof dataObj.raw === 'string') {
+        return (
+          <div className="prose prose-sm max-w-none">
+            <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg">
+              {dataObj.raw}
+            </pre>
+          </div>
+        );
+      }
     }
 
     // Si es un JSON estructurado, mostrarlo de manera organizada
     return (
       <div className="space-y-4">
-        {Object.entries(data).map(([key, value]) => (
+        {Object.entries(data as Record<string, unknown>).map(([key, value]) => (
           <div key={key} className="space-y-2">
             <h4 className="font-semibold text-sm capitalize border-b pb-1">
               {key.replace(/([A-Z])/g, ' $1').trim()}
@@ -338,7 +322,7 @@ export function ProductsList({
         product={selectedProductForDetail}
         userRole={userRole}
         onBack={handleBackFromDetail}
-        onUpdate={fetchProducts}
+        onUpdate={refreshAllProducts}
       />
     );
   }

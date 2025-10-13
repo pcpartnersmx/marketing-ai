@@ -83,6 +83,7 @@ model Product {
   customPrompt     String?  @db.Text
   researchData     Json?
   datasheetContent String?  @db.Text
+  finished         Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
