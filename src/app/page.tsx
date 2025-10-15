@@ -16,9 +16,34 @@ export default function Page() {
   const { currentView, isCampaignFormOpen, setIsCampaignFormOpen } = useView();
 
   const renderView = () => {
+    if (!currentView) {
+      // Vista aún no inicializada
+      return (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
+
     switch (currentView) {
       case 'products':
         // Renderizar según el modo de producto
+        if (!productMode) {
+          // Usuario sin permisos de productos
+          return (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Sin acceso</h3>
+                <p className="text-gray-500">No tienes permisos para acceder a la gestión de productos</p>
+              </div>
+            </div>
+          );
+        }
         if (productMode === 'datasheet') {
           // Si hay un producto seleccionado, mostrar ProductDatasheet
           if (selectedProductId) {

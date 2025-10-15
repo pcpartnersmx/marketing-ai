@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../../auth/[...nextauth]/route';
+import { PERMISSIONS } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -91,6 +94,23 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      );
+    }
+
+    // Verificar permisos de datasheet
+    if (!session.user.permissions.includes(PERMISSIONS.PRODUCTS.DATASHEET)) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para generar fichas técnicas' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     // Obtener el producto con su investigación

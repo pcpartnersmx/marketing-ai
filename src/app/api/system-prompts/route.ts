@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { PrismaClient, SystemType } from '@prisma/client';
 import { authOptions } from '../auth/[...nextauth]/route';
+import { PERMISSIONS } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -42,9 +43,16 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    if (!session?.user) {
       return NextResponse.json(
-        { error: 'No autorizado' },
+        { error: 'No autenticado' },
+        { status: 401 }
+      );
+    }
+
+    if (!session.user.permissions.includes(PERMISSIONS.SYSTEM.MANAGE_SETTINGS)) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para gestionar configuración del sistema' },
         { status: 403 }
       );
     }

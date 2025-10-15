@@ -6,6 +6,7 @@ import {
   IconSearch,
   IconUsers,
 } from "@tabler/icons-react"
+import { Input } from "@/components/ui/input"
 import { CgMenuGridO } from "react-icons/cg";
 
 import { NavMain } from "@/components/nav-main"
@@ -32,11 +33,13 @@ import {
   FiStar, FiHeart, FiGift, FiCpu, FiMonitor, FiSmartphone,
   FiWatch, FiHeadphones, FiCamera, FiAperture, FiZap, FiTrendingUp,
   FiMoreVertical, FiTrash2, FiEdit, FiFileText, FiTarget, FiMail, FiInstagram,
-  FiCheck
+  FiCheck, FiLoader
 } from 'react-icons/fi';
 import { Badge } from '@/components/ui/badge';
 import { useProduct } from '@/contexts/product-context';
 import { useView } from '@/contexts/view-context';
+import { usePermissions } from '@/hooks/use-permissions';
+import { PERMISSIONS } from '@/lib/permissions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,13 +86,7 @@ const data = {
     email: "usuario@example.com",
     avatar: "/avatars/default.jpg",
   },
-  navMain: [
-    {
-      title: "Buscar",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
+  navMain: [],
   navSecondary: [],
 }
 
@@ -108,8 +105,10 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
   const [loading, setLoading] = useState(true);
   const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
   const [productToFinish, setProductToFinish] = useState<string | null>(null);
-  const { setRefreshProducts, productMode, setProductMode, updateProductInAllComponents, refreshAllProducts } = useProduct();
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const { setRefreshProducts, productMode, setProductMode, updateProductInAllComponents, refreshAllProducts, generatingDatasheetId, setGeneratingDatasheetId } = useProduct();
   const { currentView, setCurrentView } = useView();
+  const { hasPermission } = usePermissions();
 
   // Mock data for blogs
   const blogs = [
@@ -169,6 +168,10 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
     try {
       // Usar la función de actualización global que sincroniza todos los componentes
       await updateProductInAllComponents(productToFinish, { finished: true });
+      
+      // Actualizar la lista local de productos
+      await fetchProducts();
+      
       toast.success('Producto marcado como finalizado');
     } catch (error) {
       console.error('Error marking product as finished:', error);
@@ -178,20 +181,73 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
     }
   };
 
+  // La confirmación de eliminación se maneja en el contenedor padre
+
+  // Filtrar productos basándose en la consulta de búsqueda
+  const filteredProducts = products.filter(product => {
+    if (!searchQuery.trim()) return true;
+
+    const searchTerm = searchQuery.toLowerCase();
+    return (
+      product.brand.toLowerCase().includes(searchTerm) ||
+      product.model.toLowerCase().includes(searchTerm)
+    );
+  });
+
+  const handleGenerateDatasheet = async (productId: string) => {
+    setGeneratingDatasheetId(productId);
+    try {
+      const response = await fetch(`/api/products/${productId}/datasheet`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al generar la ficha técnica');
+      }
+
+      const data = await response.json();
+      toast.success('Ficha técnica generada exitosamente');
+
+      // Actualizar la lista de productos
+      refreshAllProducts();
+
+      // Cambiar a modo datasheet y seleccionar el producto
+      setCurrentView('products');
+      setProductMode('datasheet');
+      onProductSelect?.(productId);
+
+    } catch (error) {
+      console.error('Error generating datasheet:', error);
+      toast.error('Error al generar la ficha técnica');
+    } finally {
+      setGeneratingDatasheetId(null);
+    }
+  };
+
   const userData = user ? {
     name: user.email?.split('@')[0] || 'Usuario',
     email: user.email || 'usuario@example.com',
     avatar: user.avatar_url || '/avatars/default.jpg',
   } : data.user;
 
-  // Create dynamic navSecondary based on user role
-  const navSecondary = user?.role === 'ADMIN' ? [
-    {
+  // Create dynamic navSecondary based on user permissions
+  const navSecondary = [];
+
+  if (hasPermission(PERMISSIONS.USERS.CREATE)) {
+    navSecondary.push({
       title: "Crear Usuario",
       url: "/create-user",
       icon: IconUsers,
-    },
-  ] : [];
+    });
+  }
+
+  if (hasPermission(PERMISSIONS.USERS.VIEW)) {
+    navSecondary.push({
+      title: "Ver Usuarios",
+      url: "/manage-users",
+      icon: IconUsers,
+    });
+  }
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -205,7 +261,7 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                 className="h-12"
               >
                 <a href="#" className='flex items-center justify-center'>
-                  <Image src="/logo.webp" width={48} height={48} className="h-12" alt="Logo" />
+                  <Image src="/logo.webp" width={100} height={100} className="w-32" alt="Logo" />
                 </a>
               </SidebarMenuButton>
             </div>
@@ -219,68 +275,92 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                 {/* Apps Grid */}
                 <div className="p-3">
                   <div className="grid grid-cols-2 gap-2">
-                    {/* Investigación */}
-                    <button
-                      onClick={() => {
-                        setCurrentView('products');
-                        setProductMode('research');
-                      }}
-                      className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
-                    >
-                      <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
-                        <FiZap className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Investigación</h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed">Investigar y analizar productos específicos para obtener insights detallados</p>
-                      </div>
-                    </button>
+                    {/* Investigación - Solo si tiene permisos de investigación */}
+                    {hasPermission(PERMISSIONS.PRODUCTS.RESEARCH) && (
+                      <button
+                        onClick={() => {
+                          setCurrentView('products');
+                          setProductMode('research');
+                        }}
+                        className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
+                      >
+                        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
+                          <FiZap className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Investigación</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">Investigar y analizar productos específicos para obtener insights detallados</p>
+                        </div>
+                      </button>
+                    )}
 
-                    {/* Ficha Técnica */}
-                    <button
-                      onClick={() => {
-                        setCurrentView('products');
-                        setProductMode('datasheet');
-                      }}
-                      className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
-                    >
-                      <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
-                        <FiFileText className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Ficha Técnica</h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed">Gestionar y visualizar fichas técnicas detalladas de productos</p>
-                      </div>
-                    </button>
+                    {/* Ficha Técnica - Solo si tiene permisos de ficha técnica */}
+                    {hasPermission(PERMISSIONS.PRODUCTS.DATASHEET) && (
+                      <button
+                        onClick={() => {
+                          setCurrentView('products');
+                          setProductMode('datasheet');
+                        }}
+                        className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
+                      >
+                        <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
+                          <FiFileText className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Ficha Técnica</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">Gestionar y visualizar fichas técnicas detalladas de productos</p>
+                        </div>
+                      </button>
+                    )}
 
-                    {/* Marketing */}
-                    <button
-                      onClick={() => setCurrentView('marketing')}
-                      className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
-                    >
-                      <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
-                        <FiTrendingUp className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Marketing</h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed">Generar estrategias de marketing personalizadas y campañas efectivas</p>
-                      </div>
-                    </button>
+                    {/* Marketing - Solo si tiene permisos de marketing */}
+                    {hasPermission(PERMISSIONS.MARKETING.VIEW) && (
+                      <button
+                        onClick={() => setCurrentView('marketing')}
+                        className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
+                      >
+                        <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
+                          <FiTrendingUp className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Marketing</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">Generar estrategias de marketing personalizadas y campañas efectivas</p>
+                        </div>
+                      </button>
+                    )}
 
-                    {/* Blogs */}
-                    <button
-                      onClick={() => setCurrentView('blogs')}
-                      className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
-                    >
-                      <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
-                        <FiEdit className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Blogs</h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed">Crear contenido de blog optimizado para productos específicos</p>
-                      </div>
-                    </button>
+                    {/* Blogs - Solo si tiene permisos de blogs */}
+                    {hasPermission(PERMISSIONS.BLOGS.VIEW) && (
+                      <button
+                        onClick={() => setCurrentView('blogs')}
+                        className="flex items-start gap-3 p-3 border border-sidebar-border rounded-lg hover:border-sidebar-accent hover:bg-sidebar-accent transition-all duration-150 text-left group h-28"
+                      >
+                        <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-150">
+                          <FiEdit className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-sidebar-foreground mb-1">Blogs</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">Crear contenido de blog optimizado para productos específicos</p>
+                        </div>
+                      </button>
+                    )}
                   </div>
+
+                  {/* Mensaje si no tiene permisos para ninguna sección */}
+                  {!hasPermission(PERMISSIONS.PRODUCTS.RESEARCH) &&
+                    !hasPermission(PERMISSIONS.PRODUCTS.DATASHEET) &&
+                    !hasPermission(PERMISSIONS.MARKETING.VIEW) &&
+                    !hasPermission(PERMISSIONS.BLOGS.VIEW) && (
+                      <div className="flex items-center justify-center p-6 text-center">
+                        <div>
+                          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <FiZap className="h-6 w-6 text-gray-400" />
+                          </div>
+                          <h4 className="text-sm font-medium text-gray-600 mb-1">Sin acceso</h4>
+                          <p className="text-xs text-gray-500">No tienes permisos para acceder a ninguna sección del sistema</p>
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
@@ -288,6 +368,22 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        {/* Search Bar */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <div className="relative px-2">
+              <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar productos..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-8 text-sm"
+              />
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <NavMain items={data.navMain} />
 
         {/* Dynamic Content based on current view */}
@@ -299,16 +395,6 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                 <SidebarGroup>
                   <div className="flex items-center justify-between px-2">
                     <SidebarGroupLabel className="text-sidebar-foreground">Productos</SidebarGroupLabel>
-                    {user?.role === 'ADMIN' && onAddProduct && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={onAddProduct}
-                        className="h-6 w-6 p-0 hover:bg-sidebar-accent"
-                      >
-                        <FiPlus className="h-3 w-3" />
-                      </Button>
-                    )}
                   </div>
                   <SidebarGroupContent>
                     <SidebarMenu>
@@ -320,13 +406,13 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                         </SidebarMenuItem>
                       ) : (() => {
                         // Filtrar productos pendientes en modo datasheet
-                        const pendingProducts = products.filter(product => product.researchData && !product.finished);
+                        const pendingProducts = filteredProducts.filter(product => product.researchData && !product.finished);
 
                         if (pendingProducts.length === 0) {
                           return (
                             <SidebarMenuItem>
                               <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                Sin productos pendientes
+                                {searchQuery.trim() ? 'No se encontraron productos' : 'Sin productos pendientes'}
                               </div>
                             </SidebarMenuItem>
                           );
@@ -348,7 +434,7 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                                     <div className="font-medium truncate text-sm">{product.brand}</div>
                                     <div className="text-xs text-muted-foreground truncate">{product.model}</div>
                                   </div>
-                                  {product.datasheetContent && (
+                                  {product.datasheetContent ? (
                                     <div className="ml-auto flex items-center gap-1">
                                       <span className="text-xs text-muted-foreground">Pendiente</span>
                                       <Tooltip>
@@ -369,39 +455,40 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                                         </TooltipContent>
                                       </Tooltip>
                                     </div>
-                                  )}
-                                </SidebarMenuButton>
-                                {user?.role === 'ADMIN' && (onEditProduct || onDeleteProduct) && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 hover:bg-sidebar-accent"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <FiMoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      {onEditProduct && (
-                                        <DropdownMenuItem onClick={() => onEditProduct(product)}>
-                                          <FiEdit className="h-4 w-4 mr-2" />
-                                          Editar
-                                        </DropdownMenuItem>
-                                      )}
-                                      {onDeleteProduct && (
-                                        <DropdownMenuItem
-                                          onClick={() => onDeleteProduct(product.id)}
-                                          className="text-red-600"
+                                  ) : <div className="ml-auto flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground">
+                                      {generatingDatasheetId === product.id ? 'Generando...' : 'Sin ficha'}
+                                    </span>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-[10px] px-1 py-0 h-4 cursor-pointer transition-colors bg-gray-500/10 text-gray-600 border-gray-500/20 hover:bg-gray-500/20"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleGenerateDatasheet(product.id);
+                                          }}
+                                          style={{ opacity: generatingDatasheetId === product.id ? 0.5 : 1 }}
                                         >
-                                          <FiTrash2 className="h-4 w-4 mr-2" />
-                                          Eliminar
-                                        </DropdownMenuItem>
-                                      )}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
+                                          {generatingDatasheetId === product.id ? (
+                                            <FiLoader className="h-3 w-3 animate-spin" />
+                                          ) : (
+                                            <FiCheck className="h-3 w-3" />
+                                          )}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>
+                                          {generatingDatasheetId === product.id 
+                                            ? 'Generando ficha técnica...' 
+                                            : 'Click para generar ficha técnica'
+                                          }
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </div>
+                                  }
+                                </SidebarMenuButton>
                               </div>
                             </SidebarMenuItem>
                           );
@@ -413,7 +500,7 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
 
                 {/* Sección de productos finalizados - Solo en modo datasheet */}
                 {(() => {
-                  const finishedProducts = products.filter(product => product.researchData && product.finished);
+                  const finishedProducts = filteredProducts.filter(product => product.researchData && product.finished);
 
                   if (finishedProducts.length === 0) return null;
 
@@ -457,37 +544,6 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                                       </Tooltip>
                                     </div>
                                   </SidebarMenuButton>
-                                  {user?.role === 'ADMIN' && (onEditProduct || onDeleteProduct) && (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-8 w-8 p-0 hover:bg-sidebar-accent"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <FiMoreVertical className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        {onEditProduct && (
-                                          <DropdownMenuItem onClick={() => onEditProduct(product)}>
-                                            <FiEdit className="h-4 w-4 mr-2" />
-                                            Editar
-                                          </DropdownMenuItem>
-                                        )}
-                                        {onDeleteProduct && (
-                                          <DropdownMenuItem
-                                            onClick={() => onDeleteProduct(product.id)}
-                                            className="text-red-600"
-                                          >
-                                            <FiTrash2 className="h-4 w-4 mr-2" />
-                                            Eliminar
-                                          </DropdownMenuItem>
-                                        )}
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  )}
                                 </div>
                               </SidebarMenuItem>
                             );
@@ -503,7 +559,7 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
               <SidebarGroup>
                 <div className="flex items-center justify-between px-2">
                   <SidebarGroupLabel className="text-sidebar-foreground">Productos</SidebarGroupLabel>
-                  {user?.role === 'ADMIN' && onAddProduct && (
+                  {hasPermission(PERMISSIONS.PRODUCTS.CREATE) && onAddProduct && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -522,14 +578,14 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                           Cargando...
                         </div>
                       </SidebarMenuItem>
-                    ) : products.length === 0 ? (
+                    ) : filteredProducts.length === 0 ? (
                       <SidebarMenuItem>
                         <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                          Sin productos
+                          {searchQuery.trim() ? 'No se encontraron productos' : 'Sin productos'}
                         </div>
                       </SidebarMenuItem>
                     ) : (
-                      products.map((product) => {
+                      filteredProducts.map((product) => {
                         const IconComponent = iconMap[product.icon || 'Package'] || FiPackage;
 
                         return (
@@ -561,32 +617,27 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
                                   </div>
                                 )}
                               </SidebarMenuButton>
-                              {user?.role === 'ADMIN' && (onEditProduct || onDeleteProduct) && (
+                              {(hasPermission(PERMISSIONS.PRODUCTS.EDIT) || hasPermission(PERMISSIONS.PRODUCTS.DELETE)) && (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button
-                                      variant="ghost"
                                       size="sm"
-                                      className="h-8 w-8 p-0 hover:bg-sidebar-accent"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <FiMoreVertical className="h-4 w-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    {onEditProduct && (
-                                      <DropdownMenuItem onClick={() => onEditProduct(product)}>
-                                        <FiEdit className="h-4 w-4 mr-2" />
-                                        Editar
+                                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                    {hasPermission(PERMISSIONS.PRODUCTS.EDIT) && (
+                                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditProduct?.(product as unknown as Product); }}>
+                                        <FiEdit className="mr-2 h-4 w-4" /> Editar
                                       </DropdownMenuItem>
                                     )}
-                                    {onDeleteProduct && (
-                                      <DropdownMenuItem
-                                        onClick={() => onDeleteProduct(product.id)}
-                                        className="text-red-600"
-                                      >
-                                        <FiTrash2 className="h-4 w-4 mr-2" />
-                                        Eliminar
+                                    {hasPermission(PERMISSIONS.PRODUCTS.DELETE) && (
+                                      <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); onDeleteProduct?.(product.id); }}>
+                                        <FiTrash2 className="mr-2 h-4 w-4" /> Eliminar
                                       </DropdownMenuItem>
                                     )}
                                   </DropdownMenuContent>
@@ -609,7 +660,7 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
           <SidebarGroup>
             <div className="flex items-center justify-between px-2">
               <SidebarGroupLabel className="text-sidebar-foreground">Blogs</SidebarGroupLabel>
-              {user?.role === 'ADMIN' && (
+              {hasPermission(PERMISSIONS.BLOGS.CREATE) && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -656,7 +707,7 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
           <SidebarGroup>
             <div className="flex items-center justify-between px-2">
               <SidebarGroupLabel className="text-sidebar-foreground">Campañas</SidebarGroupLabel>
-              {user?.role === 'ADMIN' && onAddCampaign && (
+              {hasPermission(PERMISSIONS.MARKETING.CREATE_CAMPAIGNS) && onAddCampaign && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -722,6 +773,7 @@ export function AppSidebar({ user, selectedProductId, onProductSelect, onAddProd
         cancelText="Cancelar"
         variant="default"
       />
+
     </Sidebar>
   )
 }

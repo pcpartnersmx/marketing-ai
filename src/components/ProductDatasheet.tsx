@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import { FiPlus, FiFileText, FiEdit, FiEye } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiEdit, FiEye, FiCheck } from 'react-icons/fi';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import {
@@ -16,6 +16,9 @@ import {
 } from '@/components/ui/dialog';
 import TiptapEditor from './TiptapEditor';
 import { useProduct } from '@/contexts/product-context';
+import { usePermissions } from '@/hooks/use-permissions';
+import { PERMISSIONS } from '@/lib/permissions';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Product } from '@prisma/client';
 
 interface ProductDatasheetProps {
@@ -33,7 +36,10 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState<string>('');
   const [saving, setSaving] = useState(false);
-  const { setRefreshProducts, refreshAllProducts } = useProduct();
+  const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
+  const [productToFinish, setProductToFinish] = useState<string | null>(null);
+  const { setRefreshProducts, refreshAllProducts, updateProductInAllComponents } = useProduct();
+  const { hasPermission } = usePermissions();
 
   useEffect(() => {
     fetchProductsWithResearch();
@@ -160,6 +166,39 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
     }
   };
 
+  const handleMarkAsFinished = (productId: string) => {
+    setProductToFinish(productId);
+    setConfirmFinishOpen(true);
+  };
+
+  const confirmMarkAsFinished = async () => {
+    if (!productToFinish) return;
+
+    try {
+      // Usar la función de actualización global que sincroniza todos los componentes
+      await updateProductInAllComponents(productToFinish, { finished: true });
+      
+      // Actualizar la lista local de productos
+      await fetchProductsWithResearch();
+      
+      // Si el producto finalizado es el que se está viendo, actualizar su estado
+      if (selectedProduct && selectedProduct.id === productToFinish) {
+        const updatedProduct = { ...selectedProduct, finished: true };
+        setSelectedProduct(updatedProduct);
+        if (viewingProduct && viewingProduct.id === productToFinish) {
+          setViewingProduct(updatedProduct);
+        }
+      }
+      
+      toast.success('Producto marcado como finalizado');
+    } catch (error) {
+      console.error('Error marking product as finished:', error);
+      toast.error('Error al marcar producto como finalizado');
+    } finally {
+      setProductToFinish(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -209,7 +248,7 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
                 <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
                   Ficha disponible
                 </Badge>
-                {userRole === 'ADMIN' && (
+                {hasPermission(PERMISSIONS.PRODUCTS.EDIT) && !selectedProduct.finished && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -218,6 +257,22 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
                     <FiEdit className="h-3 w-3 mr-1" />
                     Editar
                   </Button>
+                )}
+                {hasPermission(PERMISSIONS.PRODUCTS.FINISH) && !selectedProduct.finished && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleMarkAsFinished(selectedProduct.id)}
+                    className="bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20"
+                  >
+                    <FiCheck className="h-3 w-3 mr-1" />
+                    Finalizar
+                  </Button>
+                )}
+                {selectedProduct.finished && (
+                  <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                    Finalizado
+                  </Badge>
                 )}
               </div>
             </div>
@@ -257,7 +312,7 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
               <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
                 Este producto tiene investigación completada pero no se ha generado su ficha técnica aún.
               </p>
-              {userRole === 'ADMIN' && (
+              {hasPermission(PERMISSIONS.PRODUCTS.CREATE) && (
                 <Button 
                   size="lg"
                   onClick={() => handleGenerateDatasheet(selectedProduct.id)}
@@ -290,7 +345,7 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
             Genera y gestiona fichas técnicas de productos
           </p>
         </div>
-        {userRole === 'ADMIN' && products.length > 0 && (
+        {hasPermission(PERMISSIONS.PRODUCTS.CREATE) && products.length > 0 && (
           <Button className="bg-black hover:bg-black/90 text-white">
             <FiPlus className="mr-2 h-4 w-4" />
             Nueva Ficha
@@ -357,7 +412,7 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
                             <FiEye className="h-3 w-3 mr-1" />
                             Ver Ficha
                           </Button>
-                          {userRole === 'ADMIN' && (
+                          {hasPermission(PERMISSIONS.PRODUCTS.CREATE) && (
                             <Button 
                               variant="ghost" 
                               size="sm" 
@@ -376,7 +431,7 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
                           No se ha generado una ficha técnica para este producto.
                         </p>
                         
-                        {userRole === 'ADMIN' && (
+                        {hasPermission(PERMISSIONS.PRODUCTS.CREATE) && (
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -413,7 +468,7 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
               <div className="flex items-center gap-2">
                 {!isEditing ? (
                   <>
-                    {userRole === 'ADMIN' && (
+                    {hasPermission(PERMISSIONS.PRODUCTS.EDIT) && !viewingProduct?.finished && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -422,6 +477,22 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
                         <FiEdit className="h-3 w-3 mr-1" />
                         Editar
                       </Button>
+                    )}
+                    {hasPermission(PERMISSIONS.PRODUCTS.FINISH) && !viewingProduct?.finished && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => viewingProduct && handleMarkAsFinished(viewingProduct.id)}
+                        className="bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20"
+                      >
+                        <FiCheck className="h-3 w-3 mr-1" />
+                        Finalizar
+                      </Button>
+                    )}
+                    {viewingProduct?.finished && (
+                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                        Finalizado
+                      </Badge>
                     )}
                   </>
                 ) : (
@@ -458,6 +529,18 @@ export function ProductDatasheet({ userRole, selectedProductId, onProductSelect 
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Finish Dialog */}
+      <ConfirmDialog
+        open={confirmFinishOpen}
+        onOpenChange={setConfirmFinishOpen}
+        title="Finalizar Producto"
+        description="¿Estás seguro de que deseas marcar este producto como finalizado? Esta acción indica que la ficha técnica está completa y lista para uso."
+        onConfirm={confirmMarkAsFinished}
+        confirmText="Finalizar"
+        cancelText="Cancelar"
+        variant="default"
+      />
     </div>
   );
 }

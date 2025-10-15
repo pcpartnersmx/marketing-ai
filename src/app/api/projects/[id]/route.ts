@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { PERMISSIONS } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -49,13 +50,8 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Verificar que el usuario es ADMIN
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Solo los administradores pueden editar proyectos' }, { status: 403 });
+    if (!session.user.permissions.includes(PERMISSIONS.SYSTEM.MANAGE_SETTINGS)) {
+      return NextResponse.json({ error: 'No tienes permisos para editar proyectos' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -118,13 +114,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Verificar que el usuario es ADMIN
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Solo los administradores pueden eliminar proyectos' }, { status: 403 });
+    if (!session.user.permissions.includes(PERMISSIONS.SYSTEM.MANAGE_SETTINGS)) {
+      return NextResponse.json({ error: 'No tienes permisos para eliminar proyectos' }, { status: 403 });
     }
 
     const { id } = await params;

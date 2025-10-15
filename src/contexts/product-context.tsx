@@ -1,7 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { Product } from '@prisma/client';
+import { useSession } from 'next-auth/react';
+import { PERMISSIONS } from '@/lib/permissions';
 
 type ProductMode = 'research' | 'datasheet';
 
@@ -17,20 +19,40 @@ interface ProductContextType {
   refreshProducts: () => void;
   setRefreshProducts: (callback: () => void) => void;
   refreshAllProducts: () => void;
-  productMode: ProductMode;
-  setProductMode: (mode: ProductMode) => void;
+  productMode: ProductMode | null;
+  setProductMode: (mode: ProductMode | null) => void;
   // Nueva función para actualizar un producto específico en todos los componentes
   updateProductInAllComponents: (productId: string, updates: Partial<Product>) => void;
+  // Estado de generación de ficha técnica
+  generatingDatasheetId: string | null;
+  setGeneratingDatasheetId: (id: string | null) => void;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
 export function ProductProvider({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [productMode, setProductMode] = useState<ProductMode>('research');
+  const [productMode, setProductMode] = useState<ProductMode | null>(null);
+  const [generatingDatasheetId, setGeneratingDatasheetId] = useState<string | null>(null);
+  
+  // Inicializar el modo de producto basado en los permisos del usuario
+  useEffect(() => {
+    if (session?.user?.permissions) {
+      const userPermissions = session.user.permissions;
+      
+      if (userPermissions.includes(PERMISSIONS.PRODUCTS.RESEARCH)) {
+        setProductMode('research');
+      } else if (userPermissions.includes(PERMISSIONS.PRODUCTS.DATASHEET)) {
+        setProductMode('datasheet');
+      } else {
+        setProductMode(null);
+      }
+    }
+  }, [session?.user?.permissions]);
   
   // Usar ref para almacenar las funciones de refresh sin causar re-renders
   const refreshCallbacks = useRef<(() => void)[]>([]);
@@ -97,6 +119,8 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         productMode,
         setProductMode,
         updateProductInAllComponents,
+        generatingDatasheetId,
+        setGeneratingDatasheetId,
       }}
     >
       {children}

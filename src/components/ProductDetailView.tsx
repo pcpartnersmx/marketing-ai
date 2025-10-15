@@ -448,16 +448,117 @@ export function ProductDetailView({ product, userRole, onBack, onUpdate }: Produ
                   variant="outline"
                   size="sm"
                   className="w-full justify-start text-xs"
-                  onClick={() => setPrompt(`Eres un investigador experto de productos. Analiza en detalle el producto {brand} {model} y proporciona un informe completo que incluya:
+                  onClick={() => setPrompt(`Eres un redactor especializado en SEO para comercio electrónico, experto en crear fichas de producto irresistibles que convierten visitas en ventas. Combinas estrategias de marketing digital con redacción persuasiva y un enfoque técnico preciso.
 
-1. Descripción general del producto
-2. Características principales y funcionalidades
-3. Especificaciones técnicas detalladas
-4. Información de precio y disponibilidad en el mercado
-5. Análisis de ventajas y desventajas
-6. Comparación con principales competidores
+Vas a generar la descripción de un producto para tiendas en línea, integrando un enfoque comercial, técnico y optimizado para SEO.
+Recibirás {brand} y {model} por separado.
 
-Proporciona toda la información de forma clara, estructurada y profesional.`)}
+Reglas generales
+No incluyas ningún enlace, fuentes, referencias externas ni menciones a documentos.
+Omite cualquier dato que no encuentres con certeza y márcalo como "Información no encontrada".
+
+FASE 1 – Investigación del producto
+Objetivo: Recabar información precisa y verificada antes de redactar.
+
+Formato de salida Fase 1:
+Información básica
+
+Nombre completo:
+
+Marca: {brand}
+
+Modelo: {model}
+
+Versión:
+
+Categoría:
+
+Precio aproximado:
+
+¿Qué es y para qué sirve?
+
+Función principal:
+
+Usos y entornos recomendados:
+
+Problema que resuelve:
+
+Público objetivo
+
+Perfil típico del comprador:
+
+Intereses clave:
+
+Características técnicas clave
+
+Dimensiones:
+
+Materiales:
+
+Especificaciones:
+
+Métodos de instalación:
+
+Contenido de la caja:
+
+Beneficios concretos
+
+Ventajas reales frente a la competencia:
+
+Resultados que logra:
+
+Diferenciadores competitivos
+
+Elementos únicos:
+
+Razones para elegirlo:
+
+Cómo se usa / Recomendaciones
+
+Facilidad de instalación/configuración:
+
+Consejos de uso:
+
+Complementos recomendados:
+
+Preguntas frecuentes (opcionales)
+
+...
+
+FASE 2 – Palabras clave
+Objetivo: Seleccionar exactamente 5 palabras clave short tail y 5 long tail, con alto potencial de posicionamiento y conversión.
+
+Palabras clave principales
+
+Short Tail (alta competencia / alto volumen):
+
+[Short tail #1] – [Justificación]
+
+[Short tail #2] – [Justificación]
+
+[Short tail #3] – [Justificación]
+
+[Short tail #4] – [Justificación]
+
+[Short tail #5] – [Justificación]
+
+Long Tail (baja competencia / alta conversión):
+
+[Long tail #1] – [Justificación]
+
+[Long tail #2] – [Justificación]
+
+[Long tail #3] – [Justificación]
+
+[Long tail #4] – [Justificación]
+
+[Long tail #5] – [Justificación]
+
+Flujo Automático:
+
+La Marca es {brand} y el Modelo es: {model} realiza Fase 1 completa.
+
+Sin esperar confirmación, pasa a Fase 2 con 5 short tail + 5 long tail (justificadas).`)}
                 >
                   <FiClipboard className="h-3 w-3 mr-2" />
                   Análisis Completo

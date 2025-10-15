@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { PrismaClient, UserRole } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { PERMISSIONS, isValidPermission } from '@/lib/permissions'
 
 const prisma = new PrismaClient()
 
@@ -15,14 +16,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
         }
 
-        if (session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Solo los administradores pueden crear usuarios' }, { status: 403 })
+        if (!session.user.permissions.includes(PERMISSIONS.USERS.CREATE)) {
+            return NextResponse.json({ error: 'No tienes permisos para crear usuarios' }, { status: 403 })
         }
 
-        const { email, password, name, role } = await request.json()
+        const { email, password, name, permissions } = await request.json()
 
         // Validate required fields
-        if (!email || !password || !name || !role) {
+        if (!email || !password || !name || !permissions) {
             return NextResponse.json({
                 error: 'Todos los campos son requeridos'
             }, { status: 400 })
@@ -43,10 +44,18 @@ export async function POST(request: NextRequest) {
             }, { status: 400 })
         }
 
-        // Validate role
-        if (!Object.values(UserRole).includes(role)) {
+        // Validate permissions
+        if (!Array.isArray(permissions) || permissions.length === 0) {
             return NextResponse.json({
-                error: 'Rol inválido'
+                error: 'Debe proporcionar al menos un permiso'
+            }, { status: 400 })
+        }
+
+        // Validate each permission
+        const invalidPermissions = permissions.filter(permission => !isValidPermission(permission))
+        if (invalidPermissions.length > 0) {
+            return NextResponse.json({
+                error: `Permisos inválidos: ${invalidPermissions.join(', ')}`
             }, { status: 400 })
         }
 
@@ -70,13 +79,13 @@ export async function POST(request: NextRequest) {
                 email,
                 password: hashedPassword,
                 name,
-                role: role as UserRole,
+                permissions,
             },
             select: {
                 id: true,
                 email: true,
                 name: true,
-                role: true,
+                permissions: true,
                 createdAt: true,
             }
         })
@@ -105,8 +114,8 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
         }
 
-        if (session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Solo los administradores pueden ver la lista de usuarios' }, { status: 403 })
+        if (!session.user.permissions.includes(PERMISSIONS.USERS.VIEW)) {
+            return NextResponse.json({ error: 'No tienes permisos para ver la lista de usuarios' }, { status: 403 })
         }
 
         // Get all users (excluding passwords)
@@ -115,7 +124,7 @@ export async function GET(request: NextRequest) {
                 id: true,
                 email: true,
                 name: true,
-                role: true,
+                permissions: true,
                 createdAt: true,
                 updatedAt: true,
                 _count: {

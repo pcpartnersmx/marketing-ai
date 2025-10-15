@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
+import { PERMISSIONS } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -14,26 +15,21 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Get user role to determine visibility
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id }
-    });
-
     interface ProjectWhereClause {
       isPublic?: boolean;
       userId?: string;
     }
     let whereClause: ProjectWhereClause = {};
 
-    if (user?.role === 'VIEWER') {
-      // VIEWER users can only see public projects
-      whereClause = {
-        isPublic: true
-      };
-    } else {
-      // ADMIN and EDITOR users can see their own projects
+    // Users with system permissions can see their own projects
+    // Users without system permissions can only see public projects
+    if (session.user.permissions.includes(PERMISSIONS.SYSTEM.MANAGE_SETTINGS)) {
       whereClause = {
         userId: session.user.id
+      };
+    } else {
+      whereClause = {
+        isPublic: true
       };
     }
 
@@ -60,13 +56,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Verificar que el usuario es ADMIN
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id }
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Solo los administradores pueden crear proyectos' }, { status: 403 });
+    if (!session.user.permissions.includes(PERMISSIONS.SYSTEM.MANAGE_SETTINGS)) {
+      return NextResponse.json({ error: 'No tienes permisos para crear proyectos' }, { status: 403 });
     }
 
     const body = await request.json();

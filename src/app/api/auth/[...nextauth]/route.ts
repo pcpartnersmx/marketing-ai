@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 import type { NextAuthOptions } from "next-auth";
+import { getPermissionsForRole } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -40,11 +41,31 @@ export const authOptions: NextAuthOptions = {
                         return null;
                     }
 
+                    // Obtener permisos del usuario
+                    let permissions: string[] = (user as any).permissions || [];
+                    
+                    // Si el usuario no tiene permisos, asignar todos los permisos (migración automática)
+                    if (permissions.length === 0) {
+                        console.log(`🔄 Migrando permisos para usuario: ${user.email}`);
+                        permissions = getPermissionsForRole('ADMIN'); // Asignar todos los permisos
+                        
+                        // Actualizar en la base de datos
+                        try {
+                            await prisma.user.update({
+                                where: { id: user.id },
+                                data: { permissions }
+                            });
+                            console.log(`✅ Permisos migrados para: ${user.email}`);
+                        } catch (error) {
+                            console.error(`❌ Error migrando permisos para ${user.email}:`, error);
+                        }
+                    }
+
                     return {
                         id: user.id,
                         email: user.email,
                         name: user.name || '',
-                        role: user.role,
+                        permissions: permissions,
                     };
                 } catch (error) {
                     console.error('Error during authentication:', error);
@@ -63,7 +84,7 @@ export const authOptions: NextAuthOptions = {
                 token.id = user.id;
                 token.email = user.email;
                 token.name = user.name;
-                token.role = user.role;
+                token.permissions = user.permissions;
             }
             return token;
         },
@@ -72,7 +93,7 @@ export const authOptions: NextAuthOptions = {
                 session.user.id = token.id as string;
                 session.user.email = token.email as string;
                 session.user.name = token.name as string;
-                session.user.role = token.role;
+                session.user.permissions = token.permissions as string[];
             }
             return session;
         },

@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { authOptions } from '../../../auth/[...nextauth]/route';
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { PERMISSIONS } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,14 @@ export async function POST(
       return NextResponse.json(
         { error: 'No autenticado' },
         { status: 401 }
+      );
+    }
+
+    // Verificar permisos de investigación
+    if (!session.user.permissions.includes(PERMISSIONS.PRODUCTS.RESEARCH)) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para realizar investigación de productos' },
+        { status: 403 }
       );
     }
 

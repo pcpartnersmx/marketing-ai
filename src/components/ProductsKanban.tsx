@@ -28,7 +28,8 @@ import {
   FiEye,
   FiMoreVertical,
   FiSearch,
-  FiFilter
+  FiFilter,
+  FiLoader
 } from 'react-icons/fi';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Product } from '@prisma/client';
 
@@ -132,7 +138,7 @@ export function ProductsKanban({
   const [loading, setLoading] = useState(true);
   const [isFinishedExpanded, setIsFinishedExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const { setRefreshProducts, refreshAllProducts } = useProduct();
+  const { setRefreshProducts, refreshAllProducts, generatingDatasheetId, setGeneratingDatasheetId } = useProduct();
   const isAdmin = userRole === 'ADMIN';
 
   // Registrar la función de refresh en el contexto
@@ -158,6 +164,32 @@ export function ProductsKanban({
     fetchProducts();
   }, []);
 
+  const handleGenerateDatasheet = async (productId: string) => {
+    setGeneratingDatasheetId(productId);
+    try {
+      const response = await fetch(`/api/products/${productId}/datasheet`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al generar la ficha técnica');
+      }
+
+      const data = await response.json();
+      toast.success('Ficha técnica generada exitosamente');
+
+      // Actualizar la lista de productos
+      refreshAllProducts();
+      
+      // También actualizar la lista local
+      await fetchProducts();
+    } catch (error) {
+      console.error('Error generating datasheet:', error);
+      toast.error('Error al generar la ficha técnica');
+    } finally {
+      setGeneratingDatasheetId(null);
+    }
+  };
 
   // const handleProductClick = (product: Product) => {
   //   onProductSelect?.(product.id);
@@ -253,8 +285,40 @@ export function ProductsKanban({
                   }
                 `}
               >
-                {progressInfo.label}
+                {generatingDatasheetId === product.id ? 'Generando...' : progressInfo.label}
               </Badge>
+              
+              {/* Botón para generar ficha técnica - solo en columna "Sin Ficha Técnica" */}
+              {!product.datasheetContent && product.researchData && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleGenerateDatasheet(product.id);
+                      }}
+                      style={{ opacity: generatingDatasheetId === product.id ? 0.5 : 1 }}
+                    >
+                      {generatingDatasheetId === product.id ? (
+                        <FiLoader className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <FiFileText className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {generatingDatasheetId === product.id 
+                        ? 'Generando ficha técnica...' 
+                        : 'Generar ficha técnica'
+                      }
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
               
               {/* Menú de acciones */}
               {isAdmin && (
@@ -278,25 +342,6 @@ export function ProductsKanban({
                     >
                       <FiEye className="h-4 w-4 mr-2" />
                       Ver detalles
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditProduct?.(product);
-                      }}
-                    >
-                      <FiEdit3 className="h-4 w-4 mr-2" />
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteProduct?.(product.id);
-                      }}
-                      className="text-red-600 focus:text-red-600"
-                    >
-                      <FiTrash2 className="h-4 w-4 mr-2" />
-                      Eliminar
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
